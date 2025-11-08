@@ -1,4 +1,4 @@
-use actix_web::{post, web, HttpResponse, Responder};
+use actix_web::{HttpResponse, Responder, get, post, web};
 use serde::{Deserialize, Serialize};
 use sqlx::{MySqlPool};
 
@@ -16,6 +16,13 @@ struct ExistingUser {
 }
 
 #[derive(Serialize)]
+pub struct UserResponse {
+    id: i32,
+    email: String,
+    name: String
+}
+
+#[derive(Serialize)]
 struct ErrorResponse {
     message: String
 }
@@ -27,10 +34,25 @@ pub async fn get_all_users(pool: &MySqlPool) -> Result<Vec<String>, sqlx::Error>
 
     let users = rows
         .into_iter()
-        .map(|row| row.email.unwrap_or_default())
+        .map(|row| row.email)
         .collect();
 
     Ok(users)
+}
+
+pub async  fn get_user_by_id(pool: &MySqlPool, id: i32) -> Result<Option<UserResponse>, sqlx::Error> {
+    let row = sqlx::query!(
+        "SELECT * FROM Users WHERE id = ?",
+        id
+    )
+    .fetch_optional(pool)
+    .await?;
+
+    Ok(row.map(|r| UserResponse {
+        id: r.id,
+        name: r.name,
+        email: r.email
+    }))
 }
 
 
@@ -99,8 +121,8 @@ async fn login(
     match row {
         Ok(Some(record)) => {
 
-            let stored_email = record.email.unwrap_or_default();
-            let stored_password = record.password.unwrap_or_default();
+            let stored_email = record.email;
+            let stored_password = record.password;
 
             if stored_email == user.email && stored_password == user.password {
                 HttpResponse::Ok().json(serde_json::json!({
@@ -127,7 +149,30 @@ async fn login(
     }
 }
 
+#[get("/users/{id}")]
+async fn get_user(
+    pool: web::Data<MySqlPool>,
+    path: web::Path<i32>
+) -> impl Responder {
+    
+    let id = path.into_inner();
+
+    match crate::user::get_user_by_id(pool.get_ref(), id).await {
+        Ok(Some(user)) => HttpResponse::Ok().json(user),
+        Ok(None) => HttpResponse::NotFound().json(serde_json::json!({
+            "message": "No user found for provided ID!"
+        })),
+        Err(e) => {
+            eprintln!("Database error: {:?}", e);
+            HttpResponse::InternalServerError().json(serde_json::json!({
+                "message": "Database error!"
+            }))
+        }
+    }
+}
+
 pub fn init(cfg: &mut web::ServiceConfig) {
     cfg.service(sign_up);
     cfg.service(login);
+    cfg.service(get_user);
 }

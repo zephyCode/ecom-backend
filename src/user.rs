@@ -40,7 +40,7 @@ pub async fn get_all_users(pool: &MySqlPool) -> Result<Vec<String>, sqlx::Error>
     Ok(users)
 }
 
-pub async  fn get_user_by_id(pool: &MySqlPool, id: i32) -> Result<Option<UserResponse>, sqlx::Error> {
+pub async fn get_user_by_id(pool: &MySqlPool, id: i32) -> Result<Option<UserResponse>, sqlx::Error> {
     let row = sqlx::query!(
         "SELECT * FROM Users WHERE id = ?",
         id

@@ -1,14 +1,10 @@
-use actix_web::{App, HttpServer, Responder, get, web};
+use actix_web::{App, HttpServer, web::{self}};
 use std::env;
 use dotenvy::dotenv;
 use sqlx::mysql::MySqlPoolOptions;
 
 mod user;
-
-#[get("/")]
-async fn hello() -> impl Responder {
-    "Hello from rust backend!"
-}
+mod product;
 
 #[actix_web::main]
 async fn main() -> std::io::Result<()> {
@@ -25,7 +21,11 @@ async fn main() -> std::io::Result<()> {
     HttpServer::new(move || {
         App::new()
             .app_data(web::Data::new(pool.clone()))
-            .configure(user::init)
+            .service(
+                web::scope("/api")
+                    .configure(user::init)
+                    .configure(product::init)
+            )
     })
     .bind(("127.0.0.1", 8080))?
     .run()
